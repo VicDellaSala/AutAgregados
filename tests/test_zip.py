@@ -27,7 +27,7 @@ class ZipTests(unittest.TestCase):
         zipped = archive([('ibo/RNC.CSV', raw), ('ibo/Referencia.xlsx', b'ignored')])
         with tempfile.TemporaryDirectory() as temp:
             plain = fixtures.IntegrationTests().run_process(rows, Path(temp)/'plain.xlsx')
-            packed = process(zipped, *fixtures.IntegrationTests().inputs(), '2026-10', Path(temp)/'zip.xlsx', chunksize=1)
+            packed = process(zipped, *fixtures.IntegrationTests().inputs(), Path(temp)/'zip.xlsx', chunksize=1)
             pd.testing.assert_frame_equal(plain.preview, packed.preview)
             pd.testing.assert_frame_equal(plain.summary, packed.summary)
             self.assertEqual(plain.audit.read, packed.audit.read)

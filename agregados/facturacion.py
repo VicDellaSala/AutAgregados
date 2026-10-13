@@ -47,6 +47,11 @@ def classify(chunk, mapping, billing, park):
     exempt = agent.map(compact).isin(EXEMPT) & no_tx
     data.loc[exempt, 'FACTURACION'] = MODES[2]
     for idx in data.index[special & ~exempt & ~pending]:
+        period_issue = data.at[idx, '_PARK_ISSUE'] if '_PARK_ISSUE' in data else ''
+        if period_issue:
+            pending.loc[idx] = True
+            data.loc[idx, '_ISSUE'] += period_issue + '; '
+            continue
         if not park.usable:
             pending.loc[idx] = True
             data.loc[idx, '_ISSUE'] += park.reason + '; '

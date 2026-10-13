@@ -124,9 +124,9 @@ class IntegrationTests(unittest.TestCase):
         p = excel([['BANCO', 'AGREGADO', 'AFIPOS', 'TERMINAL']], '7A_PARQUE_PARCIAL_ACTIVOS')
         return d, b, p
 
-    def run_process(self, rows, output, period='2026-10'):
+    def run_process(self, rows, output):
         csv = io.BytesIO(pd.DataFrame(rows).to_csv(index=False, sep=';').encode('utf-8'))
-        return process(csv, *self.inputs(), period, output, chunksize=2)
+        return process(csv, *self.inputs(), output, chunksize=2)
 
     def test_export_reconciles_and_preserves_text_duplicates_small_agent(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -153,12 +153,38 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual(int(result.summary.EQUIPOS.sum()), 1)
             self.assertEqual(set(result.summary.AGENTE), {'PEQUENO'})
 
-    def test_period_mismatch_stops_export(self):
+    def test_multiple_months_and_missing_dates_are_all_processed(self):
         with tempfile.TemporaryDirectory() as temp:
-            out = Path(temp)/'out.xlsx'
-            with self.assertRaisesRegex(ValueError, 'otro período'):
-                self.run_process([record()], out, '2026-09')
-            self.assertFalse(out.exists())
+            rows = [record(afipos='1', MES_PROCESO='09'), record(afipos='2'),
+                    record(afipos='3', ANO_PROCESO='', MES_PROCESO='')]
+            result = self.run_process(rows, Path(temp)/'out.xlsx')
+            self.assertEqual(result.audit.read, 3)
+            self.assertEqual(result.audit.processed, 3)
+            self.assertEqual(set(result.preview.AFIPOS), {'1', '2', '3'})
+            self.assertEqual(int(result.summary.EQUIPOS.sum()), 3)
+
+    def test_date_columns_are_optional(self):
+        with tempfile.TemporaryDirectory() as temp:
+            row = record()
+            del row['ANO_PROCESO'], row['MES_PROCESO']
+            result = self.run_process([row], Path(temp)/'out.xlsx')
+            self.assertEqual(result.audit.processed, 1)
+            self.assertEqual(result.preview.FACTURACION.iloc[0], MODES[0])
+
+    def test_park_is_checked_per_row_without_excluding_other_months(self):
+        rows = [record('RAPIDPAGO', afipos='1', MES_PROCESO='09'),
+                record('RAPIDPAGO', afipos='2', MES_PROCESO='10'),
+                record('RAPIDPAGO', afipos='3', MES_PROCESO='')]
+        csv = io.BytesIO(pd.DataFrame(rows).to_csv(index=False, sep=';').encode())
+        d, b, _ = self.inputs()
+        p = excel([['BANCO', 'AGREGADO', 'AFIPOS', 'TERMINAL'],
+                   [201, 'RAPIDPAGO', '1', '1'], [201, 'RAPIDPAGO', '2', '1']],
+                  '7A_PARQUE_PARCIAL_ACTIVOS')
+        p.name = 'Parque Septiembre.xlsx'
+        with tempfile.TemporaryDirectory() as temp:
+            result = process(csv, d, b, p, Path(temp)/'out.xlsx', chunksize=2)
+            self.assertEqual(result.audit.processed, 3)
+            self.assertEqual(result.preview.FACTURACION.tolist(), [MODES[0], MODES[3], MODES[3]])
 
     def test_all_excluded_produces_zero_totals(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -1,7 +1,6 @@
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-import re
 import tempfile
 import pandas as pd
 from .normalizacion import COLUMNS, norm, identifier, bank
@@ -11,8 +10,8 @@ from .validacion import Audit, DuplicateTracker
 from .exportacion import ExcelExport
 from .archivos import open_r34
 
-REQUIRED = set(COLUMNS) - {'PERTENENCIA2', 'FACTURACION'} | {'CANT_TRANS_ACUM_MES', 'ANO_PROCESO', 'MES_PROCESO'}
-OPTIONAL = {'NUMPOS', 'CODIGO_BANCO', 'POS_CON_TRANSACCION'}
+REQUIRED = set(COLUMNS) - {'PERTENENCIA2', 'FACTURACION'} | {'CANT_TRANS_ACUM_MES'}
+OPTIONAL = {'NUMPOS', 'CODIGO_BANCO', 'POS_CON_TRANSACCION', 'ANO_PROCESO', 'MES_PROCESO'}
 SUMMARY_COLUMNS = ['AGENTE', 'BANCO', 'FACTURACION', 'RANGO', 'EQUIPOS']
 
 
@@ -22,24 +21,19 @@ class Result:
     preview: pd.DataFrame
     summary: pd.DataFrame
     audit: Audit
-    period: str
 
 
-def process(r34, dictionary, billing, park, period, output, *, encoding='utf-8-sig', chunksize=25000, progress=None):
+def process(r34, dictionary, billing, park, output, *, encoding='utf-8-sig', chunksize=25000, progress=None):
     with open_r34(r34) as csv:
-        return _process_csv(csv, dictionary, billing, park, period, output,
+        return _process_csv(csv, dictionary, billing, park, output,
                             encoding=encoding, chunksize=chunksize, progress=progress)
 
 
-def _process_csv(r34, dictionary, billing, park, period, output, *, encoding, chunksize, progress):
-    if not re.fullmatch(r'20\d{2}-(0[1-9]|1[0-2])', period):
-        raise ValueError('Período inválido; use AAAA-MM.')
-    year, month = map(int, period.split('-'))
+def _process_csv(r34, dictionary, billing, park, output, *, encoding, chunksize, progress):
     mapping, invalid = load_dictionary(dictionary)
     pairs, billing_duplicates = load_billing(billing, mapping)
     park_name = getattr(park, 'name', str(park))
-    park_issue = park_period_issue(park_name, period) if park is not None else ''
-    park_data = load_park(park, mapping, not bool(park_issue), park_issue)
+    park_data = load_park(park, mapping)
     audit = Audit()
     if invalid:
         audit.notes.append(f'{len(invalid)} equivalencias vacías o #N/A: se conservan como pendientes, no son agentes válidos.')
@@ -47,7 +41,7 @@ def _process_csv(r34, dictionary, billing, park, period, output, *, encoding, ch
         audit.notes.append(f'Claves repetidas de referencias colapsadas sin multiplicar filas: cobro={billing_duplicates}, parque={park_data.duplicates}.')
     if not park_data.usable:
         audit.notes.append(park_data.reason)
-    audit.notes.append('Sin acumulación histórica. El parque sin fecha interna se asume del período seleccionado, salvo incompatibilidad del nombre.')
+    audit.notes.append('Se procesa todo el R34 sin selección ni filtro de mes. Las fechas, si existen, solo se usan para comprobar las excepciones del parque.')
     audit.notes.append('POS_CON_TRANSACCION no determina exoneración: se contrasta CANT_TRANS_ACUM_MES con RANGO. Sus discrepancias se reportan.')
     r34.seek(0)
     sample = r34.readline(65537)
@@ -78,9 +72,19 @@ def _process_csv(r34, dictionary, billing, park, period, output, *, encoding, ch
             with reader:
                 for chunk in reader:
                     chunk.columns = [norm(c) for c in chunk.columns]
-                    if not (pd.to_numeric(chunk.ANO_PROCESO, errors='coerce').eq(year) &
-                            pd.to_numeric(chunk.MES_PROCESO, errors='coerce').eq(month)).all():
-                        raise ValueError(f'El R34 contiene registros de otro período o sin fecha. Se seleccionó {period}.')
+                    # Missing/mixed dates never reject or filter input records.
+                    if {'ANO_PROCESO', 'MES_PROCESO'} <= set(chunk.columns):
+                        years = chunk.ANO_PROCESO.map(identifier)
+                        months = chunk.MES_PROCESO.map(identifier).str.zfill(2)
+                        periods = years + '-' + months
+                        valid = periods.str.fullmatch(r'20\d{2}-(0[1-9]|1[0-2])')
+                        periods = periods.where(valid, '')
+                    else:
+                        periods = pd.Series('', index=chunk.index)
+                    reasons = {value: park_period_issue(park_name, value) if value else
+                               'Sin fecha válida en R34 para comprobar el período del parque'
+                               for value in periods.unique()}
+                    chunk['_PARK_ISSUE'] = periods.map(reasons)
                     audit.read += len(chunk)
                     audit.duplicate_keys += tracker.add(zip(chunk.NOMBRE_BANCO.map(bank), chunk.AFIPOS.map(identifier)))
                     data, excluded = classify(chunk, mapping, pairs, park_data)
@@ -106,11 +110,11 @@ def _process_csv(r34, dictionary, billing, park, period, output, *, encoding, ch
                         progress(audit.read)
             audit.validate(sum(counts.values()))
             summary = pd.DataFrame([(*key, count) for key, count in sorted(counts.items())], columns=SUMMARY_COLUMNS)
-            export.finish(summary, audit, period)
+            export.finish(summary, audit)
             # Copy only a completed, reconciled workbook to the caller's path.
             import shutil
             shutil.copyfile(export.path, output)
         finally:
             tracker.close()
             export.close()
-    return Result(output, pd.concat(preview, ignore_index=True) if preview else pd.DataFrame(columns=COLUMNS), summary, audit, period)
+    return Result(output, pd.concat(preview, ignore_index=True) if preview else pd.DataFrame(columns=COLUMNS), summary, audit)

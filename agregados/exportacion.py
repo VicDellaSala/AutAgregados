@@ -48,7 +48,7 @@ class ExcelExport:
             self.rnc.write_row(self.row, 0, values)
             self.row += 1
 
-    def finish(self, summary, audit, period):
+    def finish(self, summary, audit):
         self.rnc.autofilter(0, 0, max(1, self.row-1), 11)
         self.rnc.hide_gridlines(2)
         s = self.book.add_worksheet('RESUMEN')
@@ -80,7 +80,7 @@ class ExcelExport:
             for k, value in enumerate(['(Todas)'] + list(values)):
                 put(k, 19+r, value)
             s.data_validation(r, 1, r, 1, {'validate': 'list', 'source': f'=$'+col+'$1:$'+col+f'${len(values)+1}', 'error_type': 'stop', 'error_message': 'Seleccione un valor de la lista.'})
-        put(4, 0, f'Período: {period}', self.total)
+        put(4, 0, 'Alcance: R34 completo', self.total)
         put(5, 0, 'Filtros B1:B4 actualizan la jerarquía.', self.note)
         put(6, 0, 'Resumen equivalente; no tabla dinámica nativa.', self.note)
         put(0, 7, 'Detalle agrupado para filtros de Excel', self.total)

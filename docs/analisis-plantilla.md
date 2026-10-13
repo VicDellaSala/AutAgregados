@@ -37,3 +37,7 @@ POS_CON_TRANSACCION = 1 aparece en **74.133** registros con conteo mensual cero 
 Las pertenencias no estandarizables, claves incoherentes y excepciones sin parque válido permanecen en RNC, con modalidad PENDIENTE DE VALIDACION. Se cuentan separadamente y no se asignan a empresas conocidas por parecido. Los únicos eliminados son los cuatro agentes autorizados y sus equivalencias exactas.
 
 El modo vigente utiliza exclusivamente R34 actual. El Word se conserva como antecedente; las instrucciones de carga interna, histórico o tercera hoja quedan sustituidas por el apartado 20 del usuario.
+
+## Actualización: sin selección de mes
+
+La instrucción posterior del usuario elimina el selector y la restricción de período. Se incluyen todos los registros del R34, con las exclusiones comerciales autorizadas. Las fechas son opcionales y solo se usan por registro para validar excepciones del parque; nunca eliminan registros ni detienen el procesamiento. Una excepción sin fecha comprobable queda pendiente.

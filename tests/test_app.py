@@ -13,6 +13,7 @@ class StreamlitTests(unittest.TestCase):
         at = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=20).run()
         self.assertFalse(at.exception)
         self.assertEqual(len(at.get('file_uploader')), 4)
+        self.assertEqual(len(at.date_input), 0)
         self.assertTrue(at.button[0].disabled)
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

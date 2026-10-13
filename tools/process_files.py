@@ -10,11 +10,11 @@ from agregados.procesamiento import process
 
 def main():
     parser = argparse.ArgumentParser(description='Procesar los cuatro archivos sin Streamlit.')
-    for name in ['r34', 'diccionario', 'cobro', 'parque', 'periodo', 'salida']:
+    for name in ['r34', 'diccionario', 'cobro', 'parque', 'salida']:
         parser.add_argument('--'+name, required=True)
     args = parser.parse_args()
     start = time.perf_counter()
-    result = process(args.r34, args.diccionario, args.cobro, args.parque, args.periodo, args.salida,
+    result = process(args.r34, args.diccionario, args.cobro, args.parque, args.salida,
                      progress=lambda n: print(f'{n:,} registros leídos', flush=True))
     report = {'segundos': round(time.perf_counter()-start, 2), 'controles': result.audit.controls(int(result.summary.EQUIPOS.sum())),
               'exclusiones': dict(result.audit.excluded), 'incidencias': dict(result.audit.issues), 'notas': result.audit.notes}

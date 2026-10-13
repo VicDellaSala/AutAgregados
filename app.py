@@ -1,14 +1,12 @@
-from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from zoneinfo import ZoneInfo
 import streamlit as st
 from agregados.procesamiento import process
 from agregados.normalizacion import MODES
 
 st.set_page_config(page_title='Automatización de Agregados Comerciales', page_icon='📊', layout='wide')
 st.title('Automatización de Agregados Comerciales')
-st.write('Cargue los cuatro archivos del período para generar el RNC y su resumen. Cada procesamiento utiliza únicamente el R34 actual.')
+st.write('Cargue los cuatro archivos para generar el RNC y su resumen. Se procesan todos los registros del R34, sin seleccionar un mes.')
 
 
 def clear_result():
@@ -20,13 +18,9 @@ def clear_result():
         old['temp'].cleanup()
 
 
-with st.sidebar:
-    st.header('Procesamiento mensual')
-    period_date = st.date_input('Mes de procesamiento', value=datetime.now(ZoneInfo('America/Caracas')).date().replace(day=1), on_change=clear_result)
-    period = period_date.strftime('%Y-%m')
-    st.caption(f'Período seleccionado: {period}. El día no interviene.')
+with st.expander('Opciones de lectura del archivo'):
     encoding = st.selectbox('Codificación del CSV', ['utf-8-sig', 'cp1252', 'latin1'], on_change=clear_result)
-    st.caption(f"Límite de subida activo: {st.get_option('server.maxUploadSize'):,} MB por archivo. Para archivos grandes use Codespaces o un equipo con al menos 4 GB de RAM y espacio temporal suficiente; la capacidad real depende del servidor.")
+    st.caption(f"Límite de subida: {st.get_option('server.maxUploadSize'):,} MB por archivo. La capacidad de procesamiento depende de la memoria del servidor.")
 
 left, right = st.columns(2)
 with left:
@@ -34,8 +28,8 @@ with left:
     dictionary = st.file_uploader('2. DICCIONARIO NUEVO', type=['xlsx'], on_change=clear_result)
 with right:
     billing = st.file_uploader('3. AGREGADOS EN COBRO', type=['xlsx'], on_change=clear_result)
-    park = st.file_uploader('4. PARQUE PARCIAL del mes', type=['xlsx'], on_change=clear_result)
-st.caption('RNC ingreso.xlsx es solo el modelo de diseño: no debe cargarse. Compruebe que el parque corresponde al mes seleccionado; su hoja de datos puede no contener fechas.')
+    park = st.file_uploader('4. PARQUE PARCIAL', type=['xlsx'], on_change=clear_result)
+st.caption('RNC ingreso.xlsx es solo el modelo de diseño: no debe cargarse. Las excepciones del parque se comprueban con las fechas del R34 cuando están disponibles.')
 
 if st.button('Procesar archivos', type='primary', disabled=any(f is None for f in [r34, dictionary, billing, park])):
     clear_result()
@@ -43,7 +37,7 @@ if st.button('Procesar archivos', type='primary', disabled=any(f is None for f i
     status = st.empty()
     try:
         with st.spinner('Procesando y generando el Excel…'):
-            result = process(r34, dictionary, billing, park, period, Path(temp.name)/'RNC Ingresos Actualizado.xlsx', encoding=encoding,
+            result = process(r34, dictionary, billing, park, Path(temp.name)/'RNC Ingresos Actualizado.xlsx', encoding=encoding,
                              progress=lambda n: status.info(f'{n:,} registros leídos. Generando RNC…'))
         st.session_state.result = {'data': result, 'temp': temp}
         status.success('Archivo generado. El resumen y el detalle cuadran.')
@@ -56,7 +50,7 @@ if 'result' in st.session_state:
     result = st.session_state.result['data']
     audit = result.audit
     cols = st.columns(4)
-    for column, label, number in zip(cols, ['Equipos en RNC', 'Excluidos', 'Pendientes', 'Período'], [audit.processed, sum(audit.excluded.values()), audit.modes.get(MODES[3], 0), result.period]):
+    for column, label, number in zip(cols, ['Equipos en RNC', 'Excluidos', 'Pendientes', 'Exonerados'], [audit.processed, sum(audit.excluded.values()), audit.modes.get(MODES[3], 0), audit.modes.get(MODES[2], 0)]):
         column.metric(label, f'{number:,}' if isinstance(number, int) else number)
     if audit.modes.get(MODES[3], 0):
         st.warning('Hay registros pendientes de validación. Permanecen identificados en RNC y en el resumen, separados de las modalidades resueltas.')

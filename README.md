@@ -14,12 +14,11 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-1. Seleccione el mes de procesamiento.
-2. Cargue **R34 (CSV o ZIP)**, **DICCIONARIO NUEVO**, **AGREGADOS EN COBRO** y **PARQUE PARCIAL (XLSX)**.
-3. Pulse **Procesar archivos** y revise RNC, RESUMEN y las validaciones.
-4. Descargue el único Excel. Contiene exactamente **RNC** y **RESUMEN**. Las validaciones están dentro de RESUMEN.
+1. Cargue **R34 (CSV o ZIP)**, **DICCIONARIO NUEVO**, **AGREGADOS EN COBRO** y **PARQUE PARCIAL (XLSX)**.
+2. Pulse **Procesar archivos** y revise RNC, RESUMEN y las validaciones.
+3. Descargue el único Excel. Contiene exactamente **RNC** y **RESUMEN**. Las validaciones están dentro de RESUMEN.
 
-Cambiar cualquiera de las entradas o el período invalida la descarga anterior. No se solicita la plantilla RNC ingreso.xlsx. Los archivos originales del ZIP son ejemplos para análisis y pruebas; no se distribuyen ni se usan en producción. El Word en `docs` conserva los requisitos originales como referencia histórica: **la definición del apartado 20 tiene prioridad**, incluida la carga manual de los cuatro archivos y las dos hojas de salida.
+Cambiar cualquiera de las entradas invalida la descarga anterior. No se selecciona mes: se procesan todos los registros del R34, aunque incluya varios períodos o no tenga columnas de fecha. La codificación queda en opciones de lectura plegadas. No se solicita la plantilla RNC ingreso.xlsx. Los archivos originales del ZIP son ejemplos para análisis y pruebas; no se distribuyen ni se usan en producción. El Word en `docs` conserva los requisitos originales como referencia histórica: **la definición del apartado 20 tiene prioridad**, incluida la carga manual de los cuatro archivos y las dos hojas de salida.
 
 ## Salida y filtros
 
@@ -42,7 +41,7 @@ Las fórmulas filtran el resumen calculado al procesar, no vuelven a clasificar 
 - RAPIDPAGO/BDV, RAPIDPAGO/BANFANB y SERVICIOS J&G/BDV se cruzan con `7A_PARQUE_PARCIAL_ACTIVOS` por **agente + banco + AFIPOS + NUMPOS/TERMINAL**. En R34, TERMINAL es una descripción de hardware, por eso se usa NUMPOS contra la columna TERMINAL numérica del parque.
 - Un equipo especial ausente de un parque válido es PROFORMA. Si su AFIPOS existe pero discrepan otras claves, queda pendiente. Sin parque del período no se inventa una clasificación.
 - Se reconocen 201 = BANCO DE VENEZUELA y 896 = BANFANB, incluidas variantes BANFAB/BANFAN. Códigos y nombres contradictorios quedan pendientes.
-- El R34 debe corresponder por completo al año/mes seleccionado. El parque de ejemplo no tiene fecha interna: el usuario debe cargar el del mes. Un mes o año incompatible en su nombre deja los casos especiales pendientes y lo informa.
+- El mes no es un requisito ni un filtro del R34. ANO_PROCESO y MES_PROCESO son opcionales. Para las excepciones del parque se comprueba la fecha de cada registro contra el nombre del parque: si es incompatible o falta una fecha válida, el equipo especial se conserva como pendiente. Los demás registros continúan su clasificación. El parque de ejemplo no contiene fecha interna; un nombre compatible no prueba por sí solo la vigencia de su contenido.
 - Las referencias duplicadas se convierten en claves únicas; los cruces no multiplican registros. Se detectan repeticiones originales de banco + AFIPOS en disco y se conservan para revisión, porque no hay autorización de eliminación.
 - Se valida **leídos = RNC + excluidos**, **resumen = RNC** y **suma de modalidades = RNC** antes de publicar el archivo. Los pendientes se cuentan por separado. No se excluyen otros agentes basándose en filtros antiguos de la plantilla.
 
@@ -57,7 +56,7 @@ Streamlit mantiene las subidas y descargas en memoria: un CSV de 626 MB necesita
 Codespaces incluye configuración en `.devcontainer`; ejecute `streamlit run app.py` y abra el puerto 8501. Para Streamlit Community Cloud seleccione este repositorio y `app.py`, pero valide su capacidad con el tamaño real. Si el servidor no soporta la carga, ejecute localmente/Codespaces o use la alternativa por archivos en disco:
 
 ```sh
-python tools/process_files.py --r34 R34.zip --diccionario "DICCIONARIO NUEVO.xlsx" --cobro "AGREGADOS EN COBRO.xlsx" --parque "Parque octubre.xlsx" --periodo 2026-10 --salida "RNC Ingresos Actualizado.xlsx"
+python tools/process_files.py --r34 R34.zip --diccionario "DICCIONARIO NUEVO.xlsx" --cobro "AGREGADOS EN COBRO.xlsx" --parque "Parque octubre.xlsx" --salida "RNC Ingresos Actualizado.xlsx"
 ```
 
 No se registran ni envían archivos de clientes a GitHub. `.gitignore` excluye CSV, XLSX, ZIP y salidas temporales.
@@ -74,4 +73,4 @@ Consulte `docs/analisis-plantilla.md` y `docs/validacion-real.md` para la estruc
 
 ## Precios e histórico
 
-`config/precios.ejemplo.json` y `agregados/precios.py` preparan la configuración futura de agente, banco, modalidad, precio, moneda, condiciones y vigencia. No hay tarifas inventadas ni cálculo monetario. El procesamiento es una función independiente por período; cualquier modo histórico requiere definir claves, actualización y permanencia antes de implementarlo.
+`config/precios.ejemplo.json` y `agregados/precios.py` preparan la configuración futura de agente, banco, modalidad, precio, moneda, condiciones y vigencia. No hay tarifas inventadas ni cálculo monetario. El procesamiento es una función independiente por archivo; cualquier modo histórico requiere definir claves, actualización y permanencia antes de implementarlo.
