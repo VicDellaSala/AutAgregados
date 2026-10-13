@@ -142,7 +142,7 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual(w['RNC']['A2'].value, '001234561')
             self.assertEqual(w['RNC']['F2'].value, '29600100123020303913')
             totals = [r[1].value for r in w['RESUMEN'].iter_rows() if r[0].value == 'Total general']
-            self.assertEqual(totals, [4])
+            self.assertEqual(totals, [4, 4])
             self.assertEqual(len(w['RESUMEN'].data_validations.dataValidation), 4)
             self.assertTrue(w['RNC'].auto_filter.ref)
             self.assertTrue(w['RESUMEN'].auto_filter.ref)

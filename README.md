@@ -26,7 +26,9 @@ Cambiar cualquiera de las entradas invalida la descarga anterior. No se seleccio
 
 **RESUMEN** reproduce la jerarquía de Hoja1: agente estandarizado → bancos, cuenta de equipos, subtotal de cada agente y total general. Agrega columnas por modalidad. Los selectores **B1:B4** filtran facturación, rango, agente y banco mediante fórmulas SUMIFS. Se inicia con todos los registros, sin ocultar agentes pequeños. Los agentes se ordenan por su total inicial, como en el modelo; cambiar filtros recalcula cantidades pero no reordena ni elimina las filas con cero.
 
-Es un **resumen equivalente con fórmulas**, no una tabla dinámica nativa. Para selección múltiple se usan los filtros de Streamlit o el detalle agrupado **H:L** de Excel. Los autofiltros H:L tienen su propio subtotal visible L3 y son independientes de los selectores B1:B4. Las columnas **N:R** contienen controles, exclusiones, pertenencias desconocidas y hasta 300 ejemplos de incidencias. Los conteos de incidencias y de desconocidos son completos. Un registro puede tener varias incidencias.
+Se conserva el resumen con fórmulas y se añade una **tabla dinámica nativa de Excel** al final de RESUMEN, accesible desde el enlace D6. Agrupa AGENTE → BANCO y permite filtrar FACTURACION y RANGO, seleccionar varios elementos y reorganizar campos. Su base es el detalle agrupado **H:L** y suma EQUIPOS: el doble clic devuelve grupos, no registros individuales del RNC. Actualizar la tabla dinámica relee H:L; para actualizar desde otro R34 hay que procesar nuevamente los cuatro archivos. No se reutilizan datos ni cachés del ejemplo.
+
+Los autofiltros H:L tienen su propio subtotal visible L3 y son independientes de los selectores B1:B4 y de la tabla dinámica. Las columnas **N:R** contienen controles, exclusiones, pertenencias desconocidas y hasta 300 ejemplos de incidencias. Los conteos de incidencias y de desconocidos son completos. Un registro puede tener varias incidencias.
 
 Las fórmulas filtran el resumen calculado al procesar, no vuelven a clasificar manualmente un RNC editado en Excel. Para actualizar datos, cargue los cuatro archivos y procese de nuevo. Excel recibe valores calculados iniciales y recalcula al modificar selectores.
 
@@ -70,6 +72,8 @@ python -m unittest discover -s tests -v
 Incluye reglas comerciales, cruces compuestos, duplicados entre bloques, identificadores largos, filtros, cargas obligatorias, cambios de entrada, conservación de agentes pequeños y ausencia de acumulación entre procesamientos. GitHub Actions ejecuta las pruebas con Python 3.12.
 
 Consulte `docs/analisis-plantilla.md` y `docs/validacion-real.md` para la estructura observada, decisiones y resultados de la prueba completa del ZIP.
+
+La revisión final, incluida la apertura y comprobación de la tabla dinámica en Microsoft Excel 16.0, está en [docs/revision-excel-2026-10-13.md](docs/revision-excel-2026-10-13.md).
 
 ## Precios e histórico
 

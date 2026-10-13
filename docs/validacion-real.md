@@ -48,3 +48,7 @@ El límite de subida de Streamlit continúa en 1.024 MB por archivo y ahora se m
 ## Actualización: R34 completo sin filtro mensual
 
 Pasan 27 pruebas. Se verifican R34 con varios meses, fechas vacías, ausencia de columnas de fecha y comparación del parque por registro. Todos los registros de estos casos se conservan. Streamlit ya no presenta un selector de fecha. Las pruebas iniciales de rechazo por mes quedan sustituidas por estas pruebas de inclusión completa.
+
+## Revisión final del Excel
+
+La revisión del 13 de octubre de 2026 en `docs/revision-excel-2026-10-13.md` sustituye las limitaciones anteriores sobre ausencia de tabla dinámica y falta de apertura en Microsoft Excel: se añadió una tabla nativa y se verificó en Excel 16.0. El informe describe las diferencias funcionales y los pendientes de datos.

@@ -72,7 +72,7 @@ if 'result' in st.session_state:
             st.dataframe(grouped, width='stretch')
             st.write('Subtotales por agente')
             st.dataframe(grouped.groupby(level='AGENTE').sum(), width='stretch')
-        st.caption('En Excel, RESUMEN conserva la jerarquía del modelo y ofrece filtros desplegables. Es un resumen equivalente con fórmulas, no una tabla dinámica nativa.')
+        st.caption('En Excel se conserva el resumen con fórmulas y se añade una tabla dinámica nativa al final de RESUMEN. Use el enlace «Tabla dinámica nativa». Su base es el detalle agrupado H:L; el doble clic muestra grupos, no equipos individuales.')
     with tab_validation:
         st.dataframe([{'Control': k, 'Valor': v} for k, v in audit.controls(int(result.summary.EQUIPOS.sum())).items()], hide_index=True)
         for note in audit.notes:

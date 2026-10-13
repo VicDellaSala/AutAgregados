@@ -1,8 +1,8 @@
-"""Two-sheet streaming Excel; template-equivalent hierarchy, not a native pivot."""
-from collections import defaultdict
+"""Two-sheet streaming Excel with calculated and native pivot summaries."""
 import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
 from .normalizacion import COLUMNS, MODES
+from .pivot import append_native_pivot, native_layout
 
 
 def literal(value):
@@ -82,7 +82,7 @@ class ExcelExport:
             s.data_validation(r, 1, r, 1, {'validate': 'list', 'source': f'=$'+col+'$1:$'+col+f'${len(values)+1}', 'error_type': 'stop', 'error_message': 'Seleccione un valor de la lista.'})
         put(4, 0, 'Alcance: R34 completo', self.total)
         put(5, 0, 'Filtros B1:B4 actualizan la jerarquía.', self.note)
-        put(6, 0, 'Resumen equivalente; no tabla dinámica nativa.', self.note)
+        put(6, 0, 'Vista calculada; tabla dinámica nativa al final.' if not summary.empty else 'Sin equipos aplicables.', self.note)
         put(0, 7, 'Detalle agrupado para filtros de Excel', self.total)
         put(1, 7, 'Los filtros H:L son independientes de B1:B4.', self.note)
         put(2, 7, 'Subtotal visible del detalle', self.total)
@@ -149,6 +149,25 @@ class ExcelExport:
             for c, value in enumerate(sample.values(), 13):
                 put(r, c, value, self.note)
             s.set_row(r, 45)
+        native_header = None
+        if not summary.empty:
+            title_row = max(r, end, row) + 4
+            native_header = title_row + 6  # one-based Excel row
+            put(5, 3, f'=HYPERLINK("#\'RESUMEN\'!A{title_row+1}","Tabla dinámica nativa")', self.input, 'Tabla dinámica nativa')
+            put(title_row, 0, 'Tabla dinámica nativa', self.total)
+            put(title_row+1, 0, 'Base: detalle agrupado H:L. Doble clic muestra grupos.', self.note)
+            s.set_row(title_row+1, 30)
+            put(title_row+2, 0, 'FACTURACION', self.total); put(title_row+2, 1, '(Todas)')
+            put(title_row+3, 0, 'RANGO', self.total); put(title_row+3, 1, '(Todas)')
+            put(native_header-1, 0, 'Etiquetas de fila', self.header)
+            put(native_header-1, 1, 'Cantidad de equipos', self.header)
+            native_row = native_header
+            for agent, bank, count in native_layout(summary):
+                put(native_row, 0, agent if bank is None else bank, self.total if bank is None else self.child)
+                put(native_row, 1, count, self.total if bank is None else self.number)
+                native_row += 1
+            put(native_row, 0, 'Total general', self.header)
+            put(native_row, 1, audit.processed, self.total)
         s.set_row(7, 45)
         for (r, c), (value, fmt, cached) in sorted(cells.items()):
             if cached is not None:
@@ -160,6 +179,8 @@ class ExcelExport:
         s.print_area(0, 0, row, 5)
         s.repeat_rows(7)
         self.close()
+        if native_header is not None:
+            append_native_pivot(self.path, summary, native_header)
 
     def close(self):
         if not self.closed:
