@@ -9,6 +9,7 @@ from .entradas import load_dictionary, load_billing, load_park, park_period_issu
 from .facturacion import classify
 from .validacion import Audit, DuplicateTracker
 from .exportacion import ExcelExport
+from .archivos import open_r34
 
 REQUIRED = set(COLUMNS) - {'PERTENENCIA2', 'FACTURACION'} | {'CANT_TRANS_ACUM_MES', 'ANO_PROCESO', 'MES_PROCESO'}
 OPTIONAL = {'NUMPOS', 'CODIGO_BANCO', 'POS_CON_TRANSACCION'}
@@ -25,6 +26,12 @@ class Result:
 
 
 def process(r34, dictionary, billing, park, period, output, *, encoding='utf-8-sig', chunksize=25000, progress=None):
+    with open_r34(r34) as csv:
+        return _process_csv(csv, dictionary, billing, park, period, output,
+                            encoding=encoding, chunksize=chunksize, progress=progress)
+
+
+def _process_csv(r34, dictionary, billing, park, period, output, *, encoding, chunksize, progress):
     if not re.fullmatch(r'20\d{2}-(0[1-9]|1[0-2])', period):
         raise ValueError('Período inválido; use AAAA-MM.')
     year, month = map(int, period.split('-'))
@@ -42,13 +49,11 @@ def process(r34, dictionary, billing, park, period, output, *, encoding='utf-8-s
         audit.notes.append(park_data.reason)
     audit.notes.append('Sin acumulación histórica. El parque sin fecha interna se asume del período seleccionado, salvo incompatibilidad del nombre.')
     audit.notes.append('POS_CON_TRANSACCION no determina exoneración: se contrasta CANT_TRANS_ACUM_MES con RANGO. Sus discrepancias se reportan.')
-    if hasattr(r34, 'seek'):
-        r34.seek(0)
-        sample = r34.read(16384)
-        r34.seek(0)
-    else:
-        with open(r34, 'rb') as f:
-            sample = f.read(16384)
+    r34.seek(0)
+    sample = r34.readline(65537)
+    r34.seek(0)
+    if len(sample) > 65536:
+        raise ValueError('El encabezado del R34 supera 64 KB. Revise el formato del CSV.')
     if isinstance(sample, bytes):
         sample = sample.decode(encoding)
     first = sample.splitlines()[0] if sample else ''
@@ -68,7 +73,7 @@ def process(r34, dictionary, billing, park, period, output, *, encoding='utf-8-s
         tracker = DuplicateTracker(Path(temp) / 'duplicates.sqlite')
         export = ExcelExport(Path(temp) / 'output.xlsx', temp)
         try:
-            reader = pd.read_csv(r34, sep=separator, encoding=encoding, dtype=str, keep_default_na=False,
+            reader = pd.read_csv(r34, sep=separator, encoding=encoding, dtype=str, keep_default_na=False, compression=None,
                                  usecols=usecols, chunksize=chunksize, on_bad_lines='error')
             with reader:
                 for chunk in reader:
@@ -94,7 +99,8 @@ def process(r34, dictionary, billing, park, period, output, *, encoding='utf-8-s
                     export.write_rnc(data[COLUMNS])
                     if preview_size < 1000:
                         part = data[COLUMNS].head(1000-preview_size)
-                        preview.append(part)
+                        if not part.empty:
+                            preview.append(part)
                         preview_size += len(part)
                     if progress:
                         progress(audit.read)

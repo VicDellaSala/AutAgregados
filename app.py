@@ -26,11 +26,11 @@ with st.sidebar:
     period = period_date.strftime('%Y-%m')
     st.caption(f'Período seleccionado: {period}. El día no interviene.')
     encoding = st.selectbox('Codificación del CSV', ['utf-8-sig', 'cp1252', 'latin1'], on_change=clear_result)
-    st.caption('R34 grande: use Codespaces o un equipo con al menos 4 GB de RAM y espacio temporal suficiente. El límite configurado es 1 GB por archivo; la capacidad real depende del servidor.')
+    st.caption(f"Límite de subida activo: {st.get_option('server.maxUploadSize'):,} MB por archivo. Para archivos grandes use Codespaces o un equipo con al menos 4 GB de RAM y espacio temporal suficiente; la capacidad real depende del servidor.")
 
 left, right = st.columns(2)
 with left:
-    r34 = st.file_uploader('1. R34', type=['csv'], on_change=clear_result)
+    r34 = st.file_uploader('1. R34 (CSV o ZIP)', type=['csv', 'zip'], on_change=clear_result, help='El ZIP debe contener un único CSV del R34, incluso dentro de una carpeta. Los demás archivos se ignoran. Límite del CSV dentro del ZIP: 4 GB. Se procesa por bloques sin extraerlo completo en memoria.')
     dictionary = st.file_uploader('2. DICCIONARIO NUEVO', type=['xlsx'], on_change=clear_result)
 with right:
     billing = st.file_uploader('3. AGREGADOS EN COBRO', type=['xlsx'], on_change=clear_result)

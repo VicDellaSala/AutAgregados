@@ -15,7 +15,7 @@ streamlit run app.py
 ```
 
 1. Seleccione el mes de procesamiento.
-2. Cargue **R34 (CSV)**, **DICCIONARIO NUEVO**, **AGREGADOS EN COBRO** y **PARQUE PARCIAL (XLSX)**.
+2. Cargue **R34 (CSV o ZIP)**, **DICCIONARIO NUEVO**, **AGREGADOS EN COBRO** y **PARQUE PARCIAL (XLSX)**.
 3. Pulse **Procesar archivos** y revise RNC, RESUMEN y las validaciones.
 4. Descargue el único Excel. Contiene exactamente **RNC** y **RESUMEN**. Las validaciones están dentro de RESUMEN.
 
@@ -48,14 +48,16 @@ Las fórmulas filtran el resumen calculado al procesar, no vuelven a clasificar 
 
 ## Archivos grandes y despliegue
 
+El R34 admite CSV directo o ZIP con **un único CSV**, incluso dentro de una carpeta. Se ignoran otros archivos del ZIP; el diccionario, cobro y parque siguen cargándose por separado. Un ZIP sin CSV, con varios CSV, dañado o protegido con contraseña muestra un error explícito. El CSV comprimido puede tener hasta **4 GB descomprimidos** y sigue sujeto al límite de filas de Excel. Se lee directamente desde el ZIP, sin extraer rutas ni cargar todo el CSV descomprimido en memoria.
+
 El CSV se lee por bloques de 25.000 filas y solo con las columnas necesarias. El Excel se escribe secuencialmente en disco mediante XlsxWriter. La detección de claves repetidas usa SQLite temporal local, sin servicio externo. La previsualización muestra como máximo 1.000 registros.
 
-Streamlit mantiene las subidas y descargas en memoria: un CSV de 626 MB necesita un servidor con margen suficiente. Se recomienda un equipo local o Codespaces con **al menos 4 GB de RAM y varios GB libres de disco temporal**. El límite de subida configurado es 1 GB por archivo; subirlo no incrementa los recursos del servidor. Excel admite como máximo 1.048.575 registros más encabezado en RNC; superar ese límite produce un error explícito.
+Streamlit mantiene las subidas y descargas en memoria: un CSV de 626 MB necesita un servidor con margen suficiente. Se recomienda un equipo local o Codespaces con **al menos 4 GB de RAM y varios GB libres de disco temporal**. El límite de subida configurado y versionado en `.streamlit/config.toml` es **1.024 MB por archivo**, tanto CSV como ZIP; la interfaz muestra el límite activo del servidor. En ZIP el límite de subida corresponde al tamaño comprimido; subirlo no incrementa los recursos del servidor. Excel admite como máximo 1.048.575 registros más encabezado en RNC; superar ese límite produce un error explícito.
 
 Codespaces incluye configuración en `.devcontainer`; ejecute `streamlit run app.py` y abra el puerto 8501. Para Streamlit Community Cloud seleccione este repositorio y `app.py`, pero valide su capacidad con el tamaño real. Si el servidor no soporta la carga, ejecute localmente/Codespaces o use la alternativa por archivos en disco:
 
 ```sh
-python tools/process_files.py --r34 R34.csv --diccionario "DICCIONARIO NUEVO.xlsx" --cobro "AGREGADOS EN COBRO.xlsx" --parque "Parque octubre.xlsx" --periodo 2026-10 --salida "RNC Ingresos Actualizado.xlsx"
+python tools/process_files.py --r34 R34.zip --diccionario "DICCIONARIO NUEVO.xlsx" --cobro "AGREGADOS EN COBRO.xlsx" --parque "Parque octubre.xlsx" --periodo 2026-10 --salida "RNC Ingresos Actualizado.xlsx"
 ```
 
 No se registran ni envían archivos de clientes a GitHub. `.gitignore` excluye CSV, XLSX, ZIP y salidas temporales.

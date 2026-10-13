@@ -38,3 +38,9 @@ No se abrió el archivo en Microsoft Excel de escritorio: se verificó con lecto
 ## Información pendiente de los datos
 
 Se necesita el parque de octubre para resolver los 2.058 casos especiales. El diccionario no resuelve BIOPAGO, SERVICIO VIRTUAL y varias pertenencias bancarias; esos equipos se conservan pendientes. Incorporar equivalencias o autorizar exclusiones adicionales exige información del negocio. No se inventaron precios ni se trasladaron resultados históricos de la plantilla.
+
+## Ampliación: R34 en ZIP
+
+La suite ampliada pasa 25 pruebas, incluyendo ZIP con CSV anidado, otros archivos ignorados, equivalencia de resultados con CSV directo, lectura incremental, ZIP ambiguo/dañado/con contraseña, límite descomprimido y encabezados UTF-8. Se procesó directamente el `ibo.zip` original: 634.601 registros leídos y 634.586 registros RNC. Los 1.419 grupos del resumen coinciden con los obtenidos del CSV directo.
+
+El límite de subida de Streamlit continúa en 1.024 MB por archivo y ahora se muestra su valor activo en la interfaz. El CSV dentro del ZIP admite hasta 4 GB descomprimidos, sujeto al límite de filas de Excel y a los recursos disponibles del servidor.
