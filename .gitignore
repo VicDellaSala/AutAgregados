@@ -1,0 +1,9 @@
+.local/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.xlsx
+*.csv
+*.zip
+.streamlit/secrets.toml
