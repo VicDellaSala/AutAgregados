@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import re
 import openpyxl
-from .normalizacion import norm, text, bank, identifier, BANK_CODES
+from .normalizacion import norm, text, bank, identifier, match_id, BANK_CODES
 
 
 def workbook(source):
@@ -85,6 +85,7 @@ def load_billing(source, mapping):
 class Park:
     keys: set = field(default_factory=set)
     afipos: set = field(default_factory=set)
+    fallback: dict = field(default_factory=dict)
     duplicates: int = 0
     usable: bool = True
     reason: str = ''
@@ -105,14 +106,17 @@ def load_park(source, mapping, usable=True, reason=''):
             a = norm(row[h['AGREGADO']])
             if a not in mapping:
                 raise ValueError(f'Agente del parque sin equivalencia: {a}.')
-            afipos, terminal = identifier(row[h['AFIPOS']]), identifier(row[h['TERMINAL']])
+            afipos, terminal = match_id(row[h['AFIPOS']]), match_id(row[h['TERMINAL']])
             b = bank(row[h['BANCO']])
-            if not afipos or not terminal or not b:
+            if not afipos or not b:
                 raise ValueError('El parque contiene claves de equipo incompletas.')
             key = (mapping[a], b, afipos, terminal)
             result.duplicates += key in result.keys
             result.keys.add(key)
             result.afipos.add(afipos)
+            affiliate = match_id(row[h['AFILIADO']]) if 'AFILIADO' in h else ''
+            if affiliate and terminal:
+                result.fallback.setdefault((mapping[a], b, affiliate, terminal), set()).add(afipos)
         return result
     finally:
         w.close()

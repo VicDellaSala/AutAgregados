@@ -6,7 +6,7 @@ from agregados.normalizacion import MODES
 
 st.set_page_config(page_title='Automatización de Agregados Comerciales', page_icon='📊', layout='wide')
 st.title('Automatización de Agregados Comerciales')
-st.write('Cargue los cuatro archivos para generar el RNC y su resumen. Se procesan todos los registros del R34, sin seleccionar un mes.')
+st.write('Cargue los cuatro archivos para generar el RNC y su resumen. Se exportan únicamente los equipos de agentes comerciales aplicables, sin seleccionar un mes.')
 
 
 def clear_result():
@@ -29,7 +29,7 @@ with left:
 with right:
     billing = st.file_uploader('3. AGREGADOS EN COBRO', type=['xlsx'], on_change=clear_result)
     park = st.file_uploader('4. PARQUE PARCIAL', type=['xlsx'], on_change=clear_result)
-st.caption('RNC ingreso.xlsx es solo el modelo de diseño: no debe cargarse. Las excepciones del parque se comprueban con las fechas del R34 cuando están disponibles.')
+st.caption('RNC.xlsx es solo el modelo de diseño: no debe cargarse. Suba el parque que corresponda al procesamiento.')
 
 if st.button('Procesar archivos', type='primary', disabled=any(f is None for f in [r34, dictionary, billing, park])):
     clear_result()
@@ -72,7 +72,7 @@ if 'result' in st.session_state:
             st.dataframe(grouped, width='stretch')
             st.write('Subtotales por agente')
             st.dataframe(grouped.groupby(level='AGENTE').sum(), width='stretch')
-        st.caption('En Excel se conserva el resumen con fórmulas y se añade una tabla dinámica nativa al final de RESUMEN. Use el enlace «Tabla dinámica nativa». Su base es el detalle agrupado H:L; el doble clic muestra grupos, no equipos individuales.')
+        st.caption('El Excel contiene Hoja1 con la tabla dinámica compacta y RNC con los equipos comerciales. El filtro inicial es PROFORMA; puede cambiarlo y añadir campos como banco directamente en Excel.')
     with tab_validation:
         st.dataframe([{'Control': k, 'Valor': v} for k, v in audit.controls(int(result.summary.EQUIPOS.sum())).items()], hide_index=True)
         for note in audit.notes:

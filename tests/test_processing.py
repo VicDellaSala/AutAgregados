@@ -35,17 +35,17 @@ MAPPING.update({'RAPID PAGO': 'RAPIDPAGO', 'FLEXIPOS': 'POSITIVO PLUS', 'AGILPAG
 
 class BillingTests(unittest.TestCase):
     def classify(self, rows, park=None, pairs=None):
-        return classify(pd.DataFrame(rows), MAPPING, pairs or {('VEPAGOS', 'BANCO DE VENEZUELA')}, park or Park())[0]
+        return classify(pd.DataFrame(rows), MAPPING, pairs or {('VEPAGOS', 'BANCO DE VENEZUELA'), ('PEQUENO', 'MI BANCO')}, park or Park())[0]
 
     def test_agent_bank_pair_not_bank_alone(self):
         out = self.classify([record(), record('PEQUENO'), record(bank='MI BANCO')])
         self.assertEqual(out.FACTURACION.tolist(), [MODES[0], MODES[1], MODES[1]])
 
-    def test_four_exempt_agents_only_when_zero_and_range_agrees(self):
+    def test_exempt_agents_use_range_and_report_count_conflicts(self):
         agents = ['DISGLOBAL', 'UBIIPAGOS', 'POSGLOBAL', 'LATIN PAGOS 2021']
         for agent in agents:
             out = self.classify([record(agent, rango='30 DIAS SIN TX', tx='0'), record(agent), record(agent, rango='TRANSANDO', tx='0')])
-            self.assertEqual(out.FACTURACION.tolist(), [MODES[2], MODES[1], MODES[3]])
+            self.assertEqual(out.FACTURACION.tolist(), [MODES[2], MODES[1], MODES[1]])
         self.assertEqual(self.classify([record(rango='30 DIAS SIN TX', tx='0')]).FACTURACION.iloc[0], MODES[0])
 
     def test_pos_indicator_conflict_is_reported(self):
@@ -53,13 +53,13 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(out.FACTURACION.iloc[0], MODES[2])
         self.assertIn('POS_CON_TRANSACCION', out._ISSUE.iloc[0])
 
-    def test_special_keys_require_agent_bank_afipos_numpos(self):
+    def test_special_keys_require_exact_agent_bank_afipos(self):
         for agent, b in [('RAPIDPAGO', 'BANCO DE VENEZUELA'), ('RAPIDPAGO', 'BANFANB'), ('SERVICIOS J&G', 'BANCO DE VENEZUELA')]:
             p = Park(keys={(agent, b, '001234561', '1')}, afipos={'001234561'})
             out = self.classify([record(agent, b), record(agent, b, afipos='999'), record(agent, b, NUMPOS='2')], p)
-            self.assertEqual(out.FACTURACION.tolist(), [MODES[0], MODES[1], MODES[3]])
+            self.assertEqual(out.FACTURACION.tolist(), [MODES[0], MODES[1], MODES[0]])
         p = Park(keys={('SERVICIOS J&G', 'BANCO DE VENEZUELA', '001234561', '1')}, afipos={'001234561'})
-        self.assertEqual(self.classify([record('RAPIDPAGO')], p).FACTURACION.iloc[0], MODES[3])
+        self.assertEqual(self.classify([record('RAPIDPAGO')], p).FACTURACION.iloc[0], MODES[1])
 
     def test_missing_park_never_silently_proforma(self):
         out = self.classify([record('RAPIDPAGO')], Park(usable=False, reason='Falta parque'))
@@ -68,13 +68,12 @@ class BillingTests(unittest.TestCase):
     def test_exclusions_exact_not_substring(self):
         rows = [record(a) for a in ['CARROPAGO', 'FLEXIPOS', 'ACIERTO TECNOLOGICO', 'AGILPAGOS', 'CARROPAGO NUEVO']]
         out, excluded = classify(pd.DataFrame(rows), MAPPING, set(), Park())
-        self.assertEqual(len(out), 1)
-        self.assertEqual(sum(excluded.values()), 4)
-        self.assertEqual(out.PERTENENCIA.iloc[0], 'CARROPAGO NUEVO')
+        self.assertEqual(len(out), 0)
+        self.assertEqual(sum(excluded.values()), 5)
 
     def test_unknown_and_bad_bank_pending(self):
         out = self.classify([record('SIN DICCIONARIO'), record(CODIGO_BANCO='896.0'), record(afipos='')])
-        self.assertEqual(out.FACTURACION.tolist(), [MODES[3]]*3)
+        self.assertEqual(out.FACTURACION.tolist(), [MODES[3]]*2)
 
     def test_bank_variants_and_identifiers(self):
         self.assertEqual(bank('896.0'), 'BANFANB')
@@ -109,7 +108,7 @@ class InputTests(unittest.TestCase):
         p = load_park(excel([headers, row, row], '7A_PARQUE_PARCIAL_ACTIVOS'), MAPPING)
         self.assertEqual(len(p.keys), 1)
         self.assertEqual(p.duplicates, 1)
-        self.assertIn(('RAPIDPAGO', 'BANFANB', '001234561', '1'), p.keys)
+        self.assertIn(('RAPIDPAGO', 'BANFANB', '1234561', '1'), p.keys)
 
     def test_park_period(self):
         self.assertTrue(park_period_issue('Parque parcial Septiembre.xlsx', '2026-10'))
@@ -120,7 +119,7 @@ class InputTests(unittest.TestCase):
 class IntegrationTests(unittest.TestCase):
     def inputs(self):
         d = excel([['RNC34', 'CORRECTO']] + list(MAPPING.items()))
-        b = excel([['VEPAGOS'], ['BANCO DE VENEZUELA']])
+        b = excel([['VEPAGOS'], ['BANCO DE VENEZUELA'], ['PEQUENO'], ['MI BANCO']])
         p = excel([['BANCO', 'AGREGADO', 'AFIPOS', 'TERMINAL']], '7A_PARQUE_PARCIAL_ACTIVOS')
         return d, b, p
 
@@ -133,20 +132,20 @@ class IntegrationTests(unittest.TestCase):
             out = Path(temp)/'out.xlsx'
             rows = [record(), record(), record('CARROPAGO'), record('PEQUENO'), record('SIN DICCIONARIO')]
             result = self.run_process(rows, out)
-            self.assertEqual((result.audit.read, result.audit.processed), (5, 4))
+            self.assertEqual((result.audit.read, result.audit.processed), (5, 3))
             self.assertEqual(result.audit.duplicate_keys, 4)
-            self.assertEqual(int(result.summary.EQUIPOS.sum()), 4)
+            self.assertEqual(int(result.summary.EQUIPOS.sum()), 3)
             w = openpyxl.load_workbook(out, data_only=True)
-            self.assertEqual(w.sheetnames, ['RNC', 'RESUMEN'])
-            self.assertEqual(w['RNC'].max_row, 5)
+            self.assertEqual(w.sheetnames, ['Hoja1', 'RNC'])
+            self.assertEqual(w['RNC'].max_row, 4)
             self.assertEqual(w['RNC']['A2'].value, '001234561')
-            self.assertEqual(w['RNC']['F2'].value, '29600100123020303913')
-            totals = [r[1].value for r in w['RESUMEN'].iter_rows() if r[0].value == 'Total general']
-            self.assertEqual(totals, [4, 4])
-            self.assertEqual(len(w['RESUMEN'].data_validations.dataValidation), 4)
+            self.assertEqual(w['RNC']['G2'].value, '29600100123020303913')
+            totals = [r[1].value for r in w['Hoja1'].iter_rows() if r[0].value == 'Total general']
+            self.assertEqual(totals, [1])
+            self.assertEqual(len(w['Hoja1'].data_validations.dataValidation), 0)
             self.assertTrue(w['RNC'].auto_filter.ref)
-            self.assertTrue(w['RESUMEN'].auto_filter.ref)
-            self.assertIn('PEQUENO', [r[0].value for r in w['RESUMEN'].iter_rows()])
+            self.assertEqual(w['Hoja1'].max_column, 2)
+            self.assertIn('PEQUENO', [r[0].value for r in w['Hoja1'].iter_rows()])
             w.close()
             # A second upload replaces all counts, not an accumulated prior result.
             result = self.run_process([record('PEQUENO', afipos='999')], out)
@@ -184,7 +183,7 @@ class IntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             result = process(csv, d, b, p, Path(temp)/'out.xlsx', chunksize=2)
             self.assertEqual(result.audit.processed, 3)
-            self.assertEqual(result.preview.FACTURACION.tolist(), [MODES[0], MODES[3], MODES[3]])
+            self.assertEqual(result.preview.FACTURACION.tolist(), [MODES[0], MODES[0], MODES[1]])
 
     def test_all_excluded_produces_zero_totals(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -197,7 +196,7 @@ class IntegrationTests(unittest.TestCase):
             out = Path(temp)/'out.xlsx'
             self.run_process([record(SERIAL='=1+1')], out)
             w = openpyxl.load_workbook(out)
-            self.assertEqual(w['RNC']['F2'].data_type, 's')
+            self.assertEqual(w['RNC']['G2'].data_type, 's')
             w.close()
 
 

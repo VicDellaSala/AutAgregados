@@ -36,13 +36,13 @@ def _process_csv(r34, dictionary, billing, park, output, *, encoding, chunksize,
     park_data = load_park(park, mapping)
     audit = Audit()
     if invalid:
-        audit.notes.append(f'{len(invalid)} equivalencias vacías o #N/A: se conservan como pendientes, no son agentes válidos.')
+        audit.notes.append(f'{len(invalid)} equivalencias vacías o #N/A: no habilitan pertenencias fuera del alcance comercial.')
     if billing_duplicates or park_data.duplicates:
         audit.notes.append(f'Claves repetidas de referencias colapsadas sin multiplicar filas: cobro={billing_duplicates}, parque={park_data.duplicates}.')
     if not park_data.usable:
         audit.notes.append(park_data.reason)
-    audit.notes.append('Se procesa todo el R34 sin selección ni filtro de mes. Las fechas, si existen, solo se usan para comprobar las excepciones del parque.')
-    audit.notes.append('POS_CON_TRANSACCION no determina exoneración: se contrasta CANT_TRANS_ACUM_MES con RANGO. Sus discrepancias se reportan.')
+    audit.notes.append('Se lee todo el R34 y se exportan únicamente agentes comerciales válidos. Se utiliza el parque cargado, sin inferir su vigencia por el nombre.')
+    audit.notes.append('POS_CON_TRANSACCION no determina exoneración: RANGO determina el estado; discrepancias con el conteo mensual se reportan.')
     r34.seek(0)
     sample = r34.readline(65537)
     r34.seek(0)
@@ -72,19 +72,6 @@ def _process_csv(r34, dictionary, billing, park, output, *, encoding, chunksize,
             with reader:
                 for chunk in reader:
                     chunk.columns = [norm(c) for c in chunk.columns]
-                    # Missing/mixed dates never reject or filter input records.
-                    if {'ANO_PROCESO', 'MES_PROCESO'} <= set(chunk.columns):
-                        years = chunk.ANO_PROCESO.map(identifier)
-                        months = chunk.MES_PROCESO.map(identifier).str.zfill(2)
-                        periods = years + '-' + months
-                        valid = periods.str.fullmatch(r'20\d{2}-(0[1-9]|1[0-2])')
-                        periods = periods.where(valid, '')
-                    else:
-                        periods = pd.Series('', index=chunk.index)
-                    reasons = {value: park_period_issue(park_name, value) if value else
-                               'Sin fecha válida en R34 para comprobar el período del parque'
-                               for value in periods.unique()}
-                    chunk['_PARK_ISSUE'] = periods.map(reasons)
                     audit.read += len(chunk)
                     audit.duplicate_keys += tracker.add(zip(chunk.NOMBRE_BANCO.map(bank), chunk.AFIPOS.map(identifier)))
                     data, excluded = classify(chunk, mapping, pairs, park_data)

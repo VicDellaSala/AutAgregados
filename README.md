@@ -16,36 +16,28 @@ streamlit run app.py
 
 1. Cargue **R34 (CSV o ZIP)**, **DICCIONARIO NUEVO**, **AGREGADOS EN COBRO** y **PARQUE PARCIAL (XLSX)**.
 2. Pulse **Procesar archivos** y revise RNC, RESUMEN y las validaciones.
-3. Descargue el único Excel. Contiene exactamente **RNC** y **RESUMEN**. Las validaciones están dentro de RESUMEN.
+3. Descargue el único Excel. Contiene exactamente **Hoja1** y **RNC**. Las validaciones se consultan en Streamlit.
 
-Cambiar cualquiera de las entradas invalida la descarga anterior. No se selecciona mes: se procesan todos los registros del R34, aunque incluya varios períodos o no tenga columnas de fecha. La codificación queda en opciones de lectura plegadas. No se solicita la plantilla RNC ingreso.xlsx. Los archivos originales del ZIP son ejemplos para análisis y pruebas; no se distribuyen ni se usan en producción. El Word en `docs` conserva los requisitos originales como referencia histórica: **la definición del apartado 20 tiene prioridad**, incluida la carga manual de los cuatro archivos y las dos hojas de salida.
+Cambiar cualquiera de las entradas invalida la descarga anterior. No se selecciona mes: se leen todos los registros del R34 y se exporta el alcance comercial, aunque incluya varios períodos o no tenga columnas de fecha. La codificación queda en opciones de lectura plegadas. No se solicita la plantilla RNC ingreso.xlsx. Los archivos originales del ZIP son ejemplos para análisis y pruebas; no se distribuyen ni se usan en producción. El Word en `docs` conserva los requisitos originales como referencia histórica: **la definición del apartado 20 tiene prioridad**, incluida la carga manual de los cuatro archivos y las dos hojas de salida.
 
-## Salida y filtros
+## Salida y reglas vigentes
 
-**RNC** conserva las 12 columnas de la plantilla: AFIPOS, TERMINAL, NOMBRE_BANCO, MARCA, MODELO, SERIAL, PERTENENCIA, PERTENENCIA2, ESTADO_POSV2, RANGO, MANEJADOR y FACTURACION. Incluye autofiltro y encabezados inmovilizados. AFIPOS, TERMINAL y SERIAL se leen y escriben como texto, sin conversiones a flotantes.
+La corrección definitiva del usuario sustituye el alcance anterior. Se lee el R34 completo, sin selección de mes, pero se exportan **solo los agentes comerciales aplicables**. El alcance reúne los agentes de Hoja1 del modelo RNC.xlsx, los agentes reconocidos de AGREGADOS EN COBRO y las excepciones de exoneración. El diccionario estandariza las variantes; una entrada del diccionario por sí sola no habilita un agente ajeno al alcance.
 
-**RESUMEN** reproduce la jerarquía de Hoja1: agente estandarizado → bancos, cuenta de equipos, subtotal de cada agente y total general. Agrega columnas por modalidad. Los selectores **B1:B4** filtran facturación, rango, agente y banco mediante fórmulas SUMIFS. Se inicia con todos los registros, sin ocultar agentes pequeños. Los agentes se ordenan por su total inicial, como en el modelo; cambiar filtros recalcula cantidades pero no reordena ni elimina las filas con cero.
+Se excluyen CREDICARDPOS y sus equivalencias, SITCA, CARROPAGO, POSITIVOPLUS, ACIERTOTECNOLOGICO, AGILPAGOS y las pertenencias fuera de alcance. Los conteos por pertenencia se muestran en Validaciones de Streamlit.
 
-Se conserva el resumen con fórmulas y se añade una **tabla dinámica nativa de Excel** al final de RESUMEN, accesible desde el enlace D6. Agrupa AGENTE → BANCO y permite filtrar FACTURACION y RANGO, seleccionar varios elementos y reorganizar campos. Su base es el detalle agrupado **H:L** y suma EQUIPOS: el doble clic devuelve grupos, no registros individuales del RNC. Actualizar la tabla dinámica relee H:L; para actualizar desde otro R34 hay que procesar nuevamente los cuatro archivos. No se reutilizan datos ni cachés del ejemplo.
+El Excel tiene exactamente dos hojas, sin paneles congelados, divisiones ni protección:
 
-Los autofiltros H:L tienen su propio subtotal visible L3 y son independientes de los selectores B1:B4 y de la tabla dinámica. Las columnas **N:R** contienen controles, exclusiones, pertenencias desconocidas y hasta 300 ejemplos de incidencias. Los conteos de incidencias y de desconocidos son completos. Un registro puede tener varias incidencias.
+- **Hoja1**, primera y activa: tabla dinámica nativa `TablaDinámica1`. FACTURACION en A2, filtro inicialmente PROFORMA en B2, encabezados en A4:B4, filas PERTENENCIA2 y valor Cuenta de AFIPOS. Si no existe PROFORMA en el procesamiento, se muestra (Todas), sin categorías ficticias. Si no hay equipos, muestra total cero sin una tabla dinámica vacía inválida.
+- **RNC**: AFIPOS, CODIGO_AFILIADO, TERMINAL, NOMBRE_BANCO, MARCA, MODELO, SERIAL, PERTENENCIA, PERTENENCIA2, ESTADO_POSV2, MANEJADOR, FACTURACION, RANGO, en ese orden. Identificadores como texto y autofiltro normal.
 
-Las fórmulas filtran el resumen calculado al procesar, no vuelven a clasificar manualmente un RNC editado en Excel. Para actualizar datos, cargue los cuatro archivos y procese de nuevo. Excel recibe valores calculados iniciales y recalcula al modificar selectores.
+La tabla dinámica se alimenta directamente de RNC y contiene los trece campos y registros individuales en una caché nueva, sin datos históricos. Permite filtrar facturación, actualizar y añadir campos como NOMBRE_BANCO. No se exportan tablas auxiliares, fórmulas selectoras ni bloques de validación. Los controles y el análisis detallado se conservan en Streamlit.
 
-## Reglas y controles
+RAPIDPAGO/BDV, RAPIDPAGO/BANFANB y SERVICIOS J&G/BDV usan el parque cargado, hoja `7A_PARQUE_PARCIAL_ACTIVOS`: coincidencia exacta de **agente + banco + AFIPOS normalizado** significa COBRO CENTRALIZADO; ausencia significa PROFORMA. No se exige coincidencia adicional de terminal si AFIPOS es válido. Los identificadores numéricos normalizan espacios, sufijo .0 y ceros iniciales para comparar, conservando el texto original en RNC. Nunca se usan coincidencias parciales. Si AFIPOS no sirve, solo se recupera con agente+banco+CODIGO_AFILIADO/AFILIADO+NUMPOS/TERMINAL cuando identifica un único AFIPOS del parque. Si queda vacío, se detiene la exportación para evitar que Cuenta de AFIPOS omita un equipo. El nombre del archivo no bloquea el cruce: el usuario debe cargar el parque correspondiente.
 
-- El diccionario se carga en cada ejecución. Se normalizan mayúsculas, espacios y acentos para buscar equivalencias. Mapeos ambiguos detienen el proceso; celdas vacías o errores `#N/A` no se consideran agentes válidos.
-- Pertenencias desconocidas conservan el original y quedan como **PENDIENTE DE VALIDACION**, sin adivinar empresas ni aplicar PROFORMA por defecto.
-- AGREGADOS EN COBRO se interpreta como **una columna jerárquica**, agente seguido de sus bancos. El cruce siempre usa **agente + banco**. Un agente no reconocido o un banco sin agente detienen la lectura.
-- Se excluyen CARROPAGO, POSITIVOPLUS, ACIERTOTECNOLOGICO y AGILPAGOS, incluidos sus equivalentes exactos del diccionario. No se usan coincidencias parciales.
-- DISGLOBAL, UBIIPAGOS, POSGLOBAL y LATINPAGOS2021 se exoneran solo cuando **CANT_TRANS_ACUM_MES = 0** y RANGO indica **SIN TX EN EL MES ACTUAL, 30, 60, 90 o 120 DIAS SIN TX**. TRANSANDO debe tener conteo positivo entero. Contradicciones, valores negativos o inválidos quedan pendientes.
-- POS_CON_TRANSACCION se reporta cuando contradice los indicadores mensuales. No sustituye a estos: en el R34 real aparece como 1 en miles de registros con conteo mensual cero y rango sin transacciones; su alcance temporal no está documentado.
-- RAPIDPAGO/BDV, RAPIDPAGO/BANFANB y SERVICIOS J&G/BDV se cruzan con `7A_PARQUE_PARCIAL_ACTIVOS` por **agente + banco + AFIPOS + NUMPOS/TERMINAL**. En R34, TERMINAL es una descripción de hardware, por eso se usa NUMPOS contra la columna TERMINAL numérica del parque.
-- Un equipo especial ausente de un parque válido es PROFORMA. Si su AFIPOS existe pero discrepan otras claves, queda pendiente. Sin parque del período no se inventa una clasificación.
-- Se reconocen 201 = BANCO DE VENEZUELA y 896 = BANFANB, incluidas variantes BANFAB/BANFAN. Códigos y nombres contradictorios quedan pendientes.
-- El mes no es un requisito ni un filtro del R34. ANO_PROCESO y MES_PROCESO son opcionales. Para las excepciones del parque se comprueba la fecha de cada registro contra el nombre del parque: si es incompatible o falta una fecha válida, el equipo especial se conserva como pendiente. Los demás registros continúan su clasificación. El parque de ejemplo no contiene fecha interna; un nombre compatible no prueba por sí solo la vigencia de su contenido.
-- Las referencias duplicadas se convierten en claves únicas; los cruces no multiplican registros. Se detectan repeticiones originales de banco + AFIPOS en disco y se conservan para revisión, porque no hay autorización de eliminación.
-- Se valida **leídos = RNC + excluidos**, **resumen = RNC** y **suma de modalidades = RNC** antes de publicar el archivo. Los pendientes se cuentan por separado. No se excluyen otros agentes basándose en filtros antiguos de la plantilla.
+Para POSGLOBAL, una combinación agente+banco incluida en cobro tiene prioridad, transando o sin transacciones. Fuera de cobro, SIN TX es EXONERADO y TRANSANDO es PROFORMA. DISGLOBAL, UBIIPAGOS y LATINPAGOS2021 conservan la exoneración cuando no transan. RANGO determina el estado: TRANSANDO es distinto de SIN TX EN EL MES ACTUAL y 30/60/90/120 DIAS SIN TX. Rangos desconocidos quedan pendientes; las discrepancias con indicadores mensuales se reportan. La regla general sigue siendo agente+banco en cobro → COBRO CENTRALIZADO; fuera → PROFORMA.
+
+Se validan leídos = incluidos + excluidos, resumen = RNC y modalidades = RNC. Las referencias no multiplican filas; se detectan duplicados originales banco+AFIPOS en disco, sin borrarlos silenciosamente.
 
 ## Archivos grandes y despliegue
 
@@ -73,7 +65,7 @@ Incluye reglas comerciales, cruces compuestos, duplicados entre bloques, identif
 
 Consulte `docs/analisis-plantilla.md` y `docs/validacion-real.md` para la estructura observada, decisiones y resultados de la prueba completa del ZIP.
 
-La revisión final, incluida la apertura y comprobación de la tabla dinámica en Microsoft Excel 16.0, está en [docs/revision-excel-2026-10-13.md](docs/revision-excel-2026-10-13.md).
+La especificación y prueba vigentes están en [docs/correccion-definitiva.md](docs/correccion-definitiva.md). Los informes anteriores documentan requisitos históricos sustituidos por esta corrección.
 
 ## Precios e histórico
 

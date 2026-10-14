@@ -5,38 +5,45 @@ from zipfile import ZipFile
 import xml.etree.ElementTree as ET
 import openpyxl
 import test_processing as fixtures
+from agregados.normalizacion import COLUMNS
 
 N={'s':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
 
-
 class NativePivotTests(unittest.TestCase):
-    def test_native_cache_contains_only_new_weighted_groups(self):
+    def test_native_cache_contains_only_current_equipment(self):
         with tempfile.TemporaryDirectory() as temp:
             output=Path(temp)/'out.xlsx'
-            result=fixtures.IntegrationTests().run_process([
-                fixtures.record(), fixtures.record(), fixtures.record('PEQUENO'), fixtures.record('CARROPAGO')], output)
+            fixtures.IntegrationTests().run_process([fixtures.record(), fixtures.record(), fixtures.record('PEQUENO'), fixtures.record('CARROPAGO')], output)
             with ZipFile(output) as z:
-                self.assertIn(b'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"', z.read('[Content_Types].xml'))
                 p=ET.fromstring(z.read('xl/pivotTables/pivotTable1.xml'))
                 c=ET.fromstring(z.read('xl/pivotCache/pivotCacheDefinition1.xml'))
                 records=ET.fromstring(z.read('xl/pivotCache/pivotCacheRecords1.xml'))
-                self.assertEqual(c.find('s:cacheSource/s:worksheetSource',N).attrib, {'ref':'H8:L10','sheet':'RESUMEN'})
-                self.assertEqual(int(c.get('recordCount')), 2)
-                self.assertEqual(sum(int(r.find('s:n',N).get('v')) for r in records), 3)
-                self.assertEqual(p.find('s:dataFields/s:dataField',N).get('subtotal'), 'sum')
-                self.assertEqual([f.get('x') for f in p.find('s:rowFields',N)], ['0','1'])
-                self.assertEqual([f.get('fld') for f in p.find('s:pageFields',N)], ['2','3'])
-            # openpyxl validates the native objects and their relationships too.
+                self.assertEqual(c.find('s:cacheSource/s:worksheetSource',N).attrib, {'ref':'A1:M4','sheet':'RNC'})
+                self.assertEqual(int(c.get('recordCount')),3)
+                self.assertEqual(len(records),3)
+                self.assertTrue(all(len(r)==13 for r in records))
+                self.assertEqual([f.get('name') for f in c.find('s:cacheFields',N)], COLUMNS)
+                self.assertEqual(p.get('name'),'TablaDinámica1')
+                self.assertEqual(p.find('s:dataFields/s:dataField',N).get('subtotal'),'count')
+                self.assertEqual([f.get('x') for f in p.find('s:rowFields',N)],['8'])
+                self.assertEqual([f.get('fld') for f in p.find('s:pageFields',N)],['11'])
+                for name in ['xl/worksheets/sheet1.xml','xl/worksheets/sheet2.xml']:
+                    root=ET.fromstring(z.read(name))
+                    self.assertIsNone(root.find('.//s:pane',N))
+                    self.assertIsNone(root.find('s:sheetProtection',N))
             w=openpyxl.load_workbook(output)
-            self.assertEqual(len(w['RESUMEN']._pivots),1)
-            self.assertEqual(w['RNC'].max_row,4)
-            self.assertEqual(w['RESUMEN']['B1'].value,'(Todas)')
-            self.assertEqual(w['RESUMEN'].auto_filter.ref,'H8:L10')
+            self.assertEqual(w.sheetnames,['Hoja1','RNC'])
+            self.assertEqual(len(w['Hoja1']._pivots),1)
+            self.assertEqual(w['Hoja1']['B2'].value,'PROFORMA')
+            self.assertEqual(w['Hoja1'].max_column,2)
+            self.assertLess(w['Hoja1'].max_row,10)
+            self.assertEqual([c.value for c in w['RNC'][1]],COLUMNS)
             w.close()
-            fixtures.IntegrationTests().run_process([fixtures.record('PEQUENO')], output)
+            fixtures.IntegrationTests().run_process([fixtures.record('PEQUENO')],output)
             with ZipFile(output) as z:
-                records=ET.fromstring(z.read('xl/pivotCache/pivotCacheRecords1.xml'))
-                self.assertEqual(sum(int(r.find('s:n',N).get('v')) for r in records),1)
+                r=ET.fromstring(z.read('xl/pivotCache/pivotCacheRecords1.xml'))
+                self.assertEqual(len(r),1)
+                self.assertNotIn(b'VEPAGOS',z.read('xl/pivotCache/pivotCacheDefinition1.xml'))
 
     def test_no_invalid_empty_pivot(self):
         with tempfile.TemporaryDirectory() as temp:
