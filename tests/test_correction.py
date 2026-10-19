@@ -16,8 +16,8 @@ class CorrectionTests(unittest.TestCase):
         mapping=dict(MAPPING,CCR='CREDICARDPOS',SITCA='SITCA',AJENO='AJENO')
         rows=[record(a) for a in ['CCR','CREDICARD POS','SITCA','AJENO','DESCONOCIDO','NOVASERVICES','LATIN PAGOS 2021']]
         result,excluded=classify(pd.DataFrame(rows),mapping,{('SITCA','BANCO DE VENEZUELA')},Park())
-        self.assertEqual(result.PERTENENCIA2.tolist(),['NOVASERVICES','LATIN PAGOS 2021'])
-        self.assertEqual(sum(excluded.values()),5)
+        self.assertEqual(result.PERTENENCIA2.tolist(),['SITCA','NOVASERVICES','LATIN PAGOS 2021'])
+        self.assertEqual(sum(excluded.values()),4)
 
     def test_park_exact_id_normalization_fallback_and_no_false_match(self):
         p=load_park(excel([['BANCO','AGREGADO','AFIPOS','AFILIADO','TERMINAL'],[201,'RAPIDPAGO',1231,123,1]],'7A_PARQUE_PARCIAL_ACTIVOS'),MAPPING)
@@ -33,3 +33,21 @@ class CorrectionTests(unittest.TestCase):
         rows=[record('DISGLOBAL',rango=r,tx='0') for r in ['TRANSANDO','SIN TX EN EL MES ACTUAL','120 DIAS SIN TX','TX DESCONOCIDO']]
         result,_=classify(pd.DataFrame(rows),MAPPING,set(),Park())
         self.assertEqual(result.FACTURACION.tolist(),[MODES[1],MODES[2],MODES[2],MODES[3]])
+
+    def test_sitca_always_proforma_with_aliases_billing_and_invalid_range(self):
+        mapping=dict(MAPPING,SITCA='SITCA',SITCA_ALIAS='SITCA')
+        rows=[record(a,bank=b,rango=r,tx=t) for a in ['SITCA',' sitca ','SITCA_ALIAS']
+              for b in ['BANCO DE VENEZUELA','MI BANCO']
+              for r,t in [('TRANSANDO','1'),('30 DIAS SIN TX','0'),('DESCONOCIDO','')]]
+        result,excluded=classify(pd.DataFrame(rows),mapping,{('SITCA','BANCO DE VENEZUELA')},Park())
+        self.assertEqual(len(result),18)
+        self.assertFalse(excluded)
+        self.assertEqual(set(result.PERTENENCIA2),{'SITCA'})
+        self.assertEqual(set(result.FACTURACION),{'PROFORMA'})
+        self.assertTrue(result._ISSUE.str.contains('inconsistentes').any())
+
+    def test_sitca_included_without_billing_or_dictionary_entry(self):
+        result,excluded=classify(pd.DataFrame([record('SITCA'),record('SITCA NUEVO')]),MAPPING,set(),Park())
+        self.assertEqual(result.PERTENENCIA2.tolist(),['SITCA'])
+        self.assertEqual(result.FACTURACION.tolist(),['PROFORMA'])
+        self.assertEqual(excluded,{'SITCA NUEVO':1})

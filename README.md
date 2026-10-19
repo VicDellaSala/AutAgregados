@@ -24,7 +24,7 @@ Cambiar cualquiera de las entradas invalida la descarga anterior. No se seleccio
 
 La corrección definitiva del usuario sustituye el alcance anterior. Se lee el R34 completo, sin selección de mes, pero se exportan **solo los agentes comerciales aplicables**. El alcance reúne los agentes de Hoja1 del modelo RNC.xlsx, los agentes reconocidos de AGREGADOS EN COBRO y las excepciones de exoneración. El diccionario estandariza las variantes; una entrada del diccionario por sí sola no habilita un agente ajeno al alcance.
 
-Se excluyen CREDICARDPOS y sus equivalencias, SITCA, CARROPAGO, POSITIVOPLUS, ACIERTOTECNOLOGICO, AGILPAGOS y las pertenencias fuera de alcance. Los conteos por pertenencia se muestran en Validaciones de Streamlit.
+Se excluyen CREDICARDPOS y sus equivalencias, CARROPAGO, POSITIVOPLUS, ACIERTOTECNOLOGICO, AGILPAGOS y las pertenencias fuera de alcance. Los conteos por pertenencia se muestran en Validaciones de Streamlit.
 
 El Excel tiene exactamente dos hojas, sin paneles congelados, divisiones ni protección:
 
@@ -34,6 +34,8 @@ El Excel tiene exactamente dos hojas, sin paneles congelados, divisiones ni prot
 La tabla dinámica se alimenta directamente de RNC y contiene los trece campos y registros individuales en una caché nueva, sin datos históricos. Permite filtrar facturación, actualizar y añadir campos como NOMBRE_BANCO. No se exportan tablas auxiliares, fórmulas selectoras ni bloques de validación. Los controles y el análisis detallado se conservan en Streamlit.
 
 RAPIDPAGO/BDV, RAPIDPAGO/BANFANB y SERVICIOS J&G/BDV usan el parque cargado, hoja `7A_PARQUE_PARCIAL_ACTIVOS`: coincidencia exacta de **agente + banco + AFIPOS normalizado** significa COBRO CENTRALIZADO; ausencia significa PROFORMA. No se exige coincidencia adicional de terminal si AFIPOS es válido. Los identificadores numéricos normalizan espacios, sufijo .0 y ceros iniciales para comparar, conservando el texto original en RNC. Nunca se usan coincidencias parciales. Si AFIPOS no sirve, solo se recupera con agente+banco+CODIGO_AFILIADO/AFILIADO+NUMPOS/TERMINAL cuando identifica un único AFIPOS del parque. Si queda vacío, se detiene la exportación para evitar que Cuenta de AFIPOS omita un equipo. El nombre del archivo no bloquea el cruce: el usuario debe cargar el parque correspondiente.
+
+**SITCA se incluye siempre en el alcance comercial y todos sus equipos se clasifican PROFORMA**, incluidas sus equivalencias reconocidas por el diccionario, aunque el agente y banco estén en AGREGADOS EN COBRO o el rango indique transacciones. Las incidencias de calidad de datos siguen visibles en Validaciones. Esta regla del 18 de octubre sustituye su exclusión anterior.
 
 Para POSGLOBAL, una combinación agente+banco incluida en cobro tiene prioridad, transando o sin transacciones. Fuera de cobro, SIN TX es EXONERADO y TRANSANDO es PROFORMA. DISGLOBAL, UBIIPAGOS y LATINPAGOS2021 conservan la exoneración cuando no transan. RANGO determina el estado: TRANSANDO es distinto de SIN TX EN EL MES ACTUAL y 30/60/90/120 DIAS SIN TX. Rangos desconocidos quedan pendientes; las discrepancias con indicadores mensuales se reportan. La regla general sigue siendo agente+banco en cobro → COBRO CENTRALIZADO; fuera → PROFORMA.
 

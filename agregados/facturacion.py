@@ -1,5 +1,5 @@
 import pandas as pd
-from .normalizacion import norm, compact, bank, identifier, EXCLUDED, EXEMPT, SPECIAL, NO_TX, MODES, COLUMNS, BANK_CODES, REFERENCE_AGENTS, match_id
+from .normalizacion import norm, compact, bank, identifier, EXCLUDED, EXEMPT, SPECIAL, NO_TX, MODES, COLUMNS, BANK_CODES, REFERENCE_AGENTS, match_id, ALWAYS_PROFORMA
 
 
 def classify(chunk, mapping, billing, park):
@@ -9,7 +9,7 @@ def classify(chunk, mapping, billing, park):
     canonical = original.map(mapping)
     data['PERTENENCIA2'] = canonical.fillna(data['PERTENENCIA']).replace('', '(SIN PERTENENCIA)')
     excluded = data['PERTENENCIA2'].map(compact).isin(EXCLUDED) | original.map(compact).isin(EXCLUDED)
-    allowed = {compact(mapping.get(a, a)) for a in REFERENCE_AGENTS} | EXEMPT | {compact(a) for a, _ in billing}
+    allowed = {compact(mapping.get(a, a)) for a in REFERENCE_AGENTS} | EXEMPT | ALWAYS_PROFORMA | {compact(a) for a, _ in billing}
     excluded |= ~data['PERTENENCIA2'].map(compact).isin(allowed)
     excluded_counts = data.loc[excluded, 'PERTENENCIA2'].value_counts().to_dict()
     data = data.loc[~excluded].copy()
@@ -70,6 +70,8 @@ def classify(chunk, mapping, billing, park):
         hit = (agent.at[idx], banks.at[idx], equipment) in primary
         data.loc[idx, 'FACTURACION'] = MODES[0] if hit else MODES[1]
     data.loc[pending, 'FACTURACION'] = MODES[3]
+    # Explicit business override; retain diagnostic flags without changing PROFORMA.
+    data.loc[agent.map(compact).isin(ALWAYS_PROFORMA), 'FACTURACION'] = MODES[1]
     # Group spelling variants without changing the original RNC bank/range fields.
     data['_BANK'] = banks.replace('', '(SIN BANCO)')
     data['_RANGE'] = rango.replace('', '(SIN RANGO)')
